@@ -1,0 +1,702 @@
+<!doctype html>
+<html lang="pt-BR">
+
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Balanceador Químico por Escalonamento (frações exatas)</title>
+    <style>
+        :root {
+            --bg: #071428;
+            --card: #071827;
+            --muted: #9fb0c7;
+            --accent: #7dd3fc;
+            --glass: rgba(255, 255, 255, 0.03);
+            --ok: #10b981;
+            --err: #ef4444;
+        }
+
+        body {
+            font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto, Arial;
+            margin: 0;
+            min-height: 100vh;
+            background: linear-gradient(180deg, #041025 0%, #071428 60%);
+            color: #e8f3fb;
+            display: flex;
+            align-items: flex-start;
+            justify-content: center;
+            padding: 28px;
+        }
+
+        .app {
+            width: 100%;
+            max-width: 1100px;
+        }
+
+        header {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            margin-bottom: 14px;
+        }
+
+        h1 {
+            font-size: 20px;
+            margin: 0;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: 1fr 460px;
+            gap: 18px;
+        }
+
+        .card {
+            background: linear-gradient(180deg, rgba(255, 255, 255, 0.02), rgba(255, 255, 255, 0.01));
+            border-radius: 12px;
+            padding: 16px;
+            box-shadow: 0 8px 30px rgba(2, 6, 23, 0.6);
+        }
+
+        textarea {
+            width: 100%;
+            min-height: 120px;
+            background: transparent;
+            color: inherit;
+            border: 1px dashed rgba(255, 255, 255, 0.06);
+            padding: 12px;
+            border-radius: 8px;
+            font-family: monospace;
+            resize: vertical;
+        }
+
+        label {
+            font-size: 13px;
+            color: var(--muted);
+            display: block;
+            margin-bottom: 8px;
+        }
+
+        button {
+            background: linear-gradient(90deg, var(--accent), #60a5fa);
+            border: none;
+            color: #042027;
+            padding: 9px 12px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 700;
+        }
+
+        .small {
+            font-size: 13px;
+            color: var(--muted);
+        }
+
+        .controls {
+            display: flex;
+            gap: 8px;
+            margin-top: 10px;
+            align-items: center;
+        }
+
+        .steps {
+            margin-top: 12px;
+            max-height: 70vh;
+            overflow: auto;
+            padding-right: 8px;
+        }
+
+        table.matrix {
+            border-collapse: separate;
+            border-spacing: 8px 6px;
+            margin: 6px 0;
+        }
+
+        table.matrix td {
+            background: var(--glass);
+            padding: 6px 8px;
+            border-radius: 6px;
+            min-width: 40px;
+            text-align: center;
+        }
+
+        .fraction {
+            white-space: nowrap;
+        }
+
+        .opdesc {
+            font-size: 13px;
+            color: var(--muted);
+            margin-bottom: 6px;
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 999px;
+            background: rgba(255, 255, 255, 0.03);
+            font-size: 13px;
+        }
+
+        .example {
+            background: rgba(255, 255, 255, 0.02);
+            padding: 8px;
+            border-radius: 8px;
+            font-family: monospace;
+            font-size: 13px;
+            color: var(--muted);
+        }
+
+        .error {
+            color: var(--err);
+            font-weight: 700;
+        }
+
+        .success {
+            color: var(--ok);
+            font-weight: 700;
+        }
+
+        .muted {
+            color: var(--muted);
+        }
+
+        hr {
+            border: none;
+            height: 1px;
+            background: rgba(255, 255, 255, 0.03);
+            margin: 12px 0;
+        }
+
+        footer {
+            margin-top: 12px;
+            font-size: 13px;
+            color: var(--muted);
+        }
+
+        .formula {
+            font-family: monospace;
+            font-size: 15px;
+            margin: 6px 0;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="app">
+        <header>
+            <div>
+                <h1>Balanceador Químico por Escalonamento (frações exatas)</h1>
+                <div class="small muted">Digite uma equação química e veja a montagem da matriz e todos os passos do
+                    escalonamento.</div>
+            </div>
+        </header>
+
+        <div class="grid">
+            <div class="card">
+                <label for="input">Equação química (ex.: <code>Fe + O2 -> Fe2O3</code>)</label>
+                <textarea id="input" placeholder="Exemplos:
+H2 + O2 -> H2O
+C2H6 + O2 -> CO2 + H2O
+Fe + O2 -> Fe2O3
+KMnO4 + HCl -> KCl + MnCl2 + H2O + Cl2
+"></textarea>
+
+                <div class="controls">
+                    <button id="balanceBtn">Balancear e mostrar passos</button>
+                    <button id="exampleBtn">Exemplos</button>
+                    <div style="flex:1"></div>
+                    <label style="display:flex;align-items:center;gap:8px;"><input id="showRREF" type="checkbox"
+                            checked> Mostrar RREF</label>
+                </div>
+
+                <hr />
+                <div class="small muted">Dicas</div>
+                <ul class="small muted">
+                    <li>Separe reagentes e produtos com <code>-></code>, <code>=> </code>ou <code>=</code>.</li>
+                    <li>Fórmulas com parênteses são suportadas: <code>Ca(OH)2</code>, <code>Al2(SO4)3</code>.</li>
+                    <li>Se colocar coeficiente no input (ex.: <code>2 H2</code>), ele é ignorado (o balanceador calcula
+                        do zero).</li>
+                </ul>
+            </div>
+
+            <div class="card">
+                <div style="display:flex; gap:10px; align-items:center; justify-content:space-between;">
+                    <div><span class="badge">Saída</span></div>
+                    <div id="status" class="muted">Pronto</div>
+                </div>
+
+                <div id="resultArea" class="steps" aria-live="polite"></div>
+                <footer>Todas as frações são exatas (BigInt). Gera coeficientes inteiros mínimos no final.</footer>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        /* ================= Fraction (BigInt rational) ================= */
+        class Frac {
+            constructor(n = 0n, d = 1n) {
+                if (typeof n === 'number') n = BigInt(n);
+                if (typeof d === 'number') d = BigInt(d);
+                if (d === 0n) throw new Error("Denominator 0");
+                if (d < 0n) { n = -n; d = -d; }
+                let g = gcdBigInt(absBigInt(n), absBigInt(d));
+                this.n = n / g;
+                this.d = d / g;
+            }
+            static from(x) {
+                if (x instanceof Frac) return x;
+                if (typeof x === 'bigint') return new Frac(x, 1n);
+                if (typeof x === 'number') {
+                    if (Number.isInteger(x)) return new Frac(BigInt(x), 1n);
+                    // fallback
+                    let s = x.toString();
+                    return Frac.from(s);
+                }
+                if (typeof x === 'string') {
+                    x = x.trim();
+                    if (x === '') return new Frac(0n, 1n);
+                    if (x.includes('/')) {
+                        let [a, b] = x.split('/').map(s => s.trim());
+                        return new Frac(BigInt(a), BigInt(b));
+                    } else {
+                        return new Frac(BigInt(x), 1n);
+                    }
+                }
+                throw new Error("Cannot convert to Frac: " + x);
+            }
+            add(b) { b = Frac.from(b); return new Frac(this.n * b.d + b.n * this.d, this.d * b.d); }
+            sub(b) { b = Frac.from(b); return new Frac(this.n * b.d - b.n * this.d, this.d * b.d); }
+            mul(b) { b = Frac.from(b); return new Frac(this.n * b.n, this.d * b.d); }
+            div(b) { b = Frac.from(b); if (b.n === 0n) throw new Error("Div por zero"); return new Frac(this.n * b.d, this.d * b.n); }
+            neg() { return new Frac(-this.n, this.d); }
+            eq(b) { b = Frac.from(b); return this.n === b.n && this.d === b.d; }
+            isZero() { return this.n === 0n; }
+            toString() { if (this.d === 1n) return this.n.toString(); return `${this.n.toString()}/${this.d.toString()}`; }
+            toDisplay() { if (this.d === 1n) return `<span class="fraction">${escapeHtml(this.n.toString())}</span>`; return `<span class="fraction">${escapeHtml(this.n.toString())}/${escapeHtml(this.d.toString())}</span>`; }
+            toNumber() { return Number(this.n) / Number(this.d); }
+        }
+        function absBigInt(x) { return x < 0n ? -x : x; }
+        function gcdBigInt(a, b) { a = absBigInt(a); b = absBigInt(b); while (b !== 0n) { let t = a % b; a = b; b = t; } return a; }
+        function lcmBigInt(a, b) { return (a / gcdBigInt(a, b)) * b; }
+        function lcmBigIntArr(arr) { let L = 1n; for (let v of arr) L = lcmBigInt(L, v); return L; }
+
+        /* ================= Chemical formula parser =================
+           Parses a chemical formula string like "Fe2(SO4)3" into map {Fe:2, S:3, O:12}
+           Rules:
+           - Element symbol: uppercase letter followed by optional lowercase letter(s)
+           - Count: integer (if absent, 1)
+           - Parentheses (...) followed by count multiplier
+           - Ignores spaces
+           - Removes any leading numeric coefficient (e.g., "2 H2O") from single compound
+        */
+        function parseFormula(formula) {
+            formula = formula.replace(/\s+/g, '');
+            // remove leading coefficient if present
+            formula = formula.replace(/^[0-9]+\s*/, '');
+            // recursive parse using stack
+            let i = 0;
+            function parseSegment() {
+                let counts = {};
+                while (i < formula.length) {
+                    let ch = formula[i];
+                    if (ch === '(') {
+                        i++; // skip '('
+                        let inner = parseSegment(); // parses until matching ')'
+                        // after returning, current char must be ')'
+                        if (i >= formula.length || formula[i] !== ')') throw new Error("Parênteses não fechados em: " + formula);
+                        i++; // skip ')'
+                        // read multiplier (digits)
+                        let numMatch = readNumber();
+                        let mult = numMatch === null ? 1n : BigInt(numMatch);
+                        for (let el in inner) {
+                            counts[el] = (counts[el] || 0n) + inner[el] * mult;
+                        }
+                    } else if (ch === ')') {
+                        break; // caller handles closing
+                    } else {
+                        // element symbol
+                        let m = formula.slice(i).match(/^([A-Z][a-z]?)/);
+                        if (!m) throw new Error("Símbolo de elemento inválido perto de: " + formula.slice(i));
+                        let el = m[1];
+                        i += el.length;
+                        let numMatch = readNumber();
+                        let cnt = numMatch === null ? 1n : BigInt(numMatch);
+                        counts[el] = (counts[el] || 0n) + cnt;
+                    }
+                }
+                return counts;
+            }
+            function readNumber() {
+                let m = formula.slice(i).match(/^([0-9]+)/);
+                if (m) {
+                    i += m[1].length;
+                    return m[1];
+                }
+                return null;
+            }
+            i = 0;
+            let res = parseSegment();
+            if (i !== formula.length) throw new Error("Erro ao analisar fórmula perto de: " + formula.slice(i));
+            // convert counts to plain JS numbers? We'll keep BigInt counts
+            // ensure map values are BigInt
+            for (let k in res) res[k] = BigInt(res[k]);
+            return res;
+        }
+
+        /* Remove any state annotation e.g., "H2O(l)" -> "H2O" and trim charge like "NH4+" -> keep formula but charge ignored */
+        function sanitizeCompoundStr(s) {
+            // remove state annotations in parentheses at end: e.g., (s),(l),(g),(aq)
+            s = s.trim();
+            // remove trailing state e.g. H2O(l) or Fe2O3 (s)
+            s = s.replace(/\([a-zA-Z]{1,3}\)$/, '');
+            // also remove + or - charge trailing (we ignore charge)
+            s = s.replace(/[\+\-]$/, '');
+            // remove stray dots or unicode, trim
+            return s.trim();
+        }
+
+        /* ================= Build element matrix =================
+           Input: equation string "C2H6 + O2 -> CO2 + H2O"
+           Output:
+             {leftCompounds: [...strings], rightCompounds: [...strings],
+              compounds: [...], elements: [...], matrix: rows=elements x cols=compounds (Frac), sign: left positive right negative}
+        */
+        function parseEquation(equation) {
+            if (!equation || equation.trim() === '') throw new Error("Equação vazia");
+            // split by -> or => or =
+            let arrowMatch = equation.match(/(->|=>|=)/);
+            if (!arrowMatch) throw new Error("Use '->', '=>' ou '=' para separar reagentes e produtos.");
+            let arrow = arrowMatch[1];
+            let parts = equation.split(arrow);
+            if (parts.length !== 2) throw new Error("Formato inválido da equação.");
+            let left = parts[0].split('+').map(s => sanitizeCompoundStr(s)).map(s => s.trim()).filter(s => s.length > 0);
+            let right = parts[1].split('+').map(s => sanitizeCompoundStr(s)).map(s => s.trim()).filter(s => s.length > 0);
+            if (left.length === 0 || right.length === 0) throw new Error("Forneça reagentes e produtos.");
+            // parse formulas to element counts
+            let compounds = left.concat(right);
+            let elementSet = new Set();
+            let parsed = [];
+            for (let i = 0; i < compounds.length; i++) {
+                try {
+                    // remove any leading numeric coefficient (e.g., "2 H2O")
+                    let compStr = compounds[i].replace(/^\s*[0-9]+\s*/, '').trim();
+                    let pc = parseFormula(compStr);
+                    parsed.push(pc);
+                    for (let el in pc) elementSet.add(el);
+                } catch (e) {
+                    throw new Error("Erro ao analisar composto '" + compounds[i] + "': " + e.message);
+                }
+            }
+            let elements = Array.from(elementSet).sort(); // stable ordering
+            // build matrix rows = elements, cols = compounds
+            // entries: positive for left (reactants), negative for right (products)
+            let cols = compounds.length;
+            let mat = [];
+            for (let el of elements) {
+                let row = [];
+                for (let j = 0; j < cols; j++) {
+                    let count = parsed[j][el] || 0n;
+                    // left side indices: 0..left.length-1 are reactants
+                    if (j < left.length) row.push(Frac.from(count.toString()));
+                    else row.push(Frac.from((-count).toString()));
+                }
+                mat.push(row);
+            }
+            return { left, right, compounds, elements, matrix: mat };
+        }
+
+        /* ================= Matrix rendering ================= */
+        function matrixToHtml(mat, colNames, rowNames) {
+            let n = mat[0].length;
+            let rowsHtml = mat.map((row, i) => {
+                let tds = row.map(c => `<td>${c.toDisplay()}</td>`).join('');
+                let lastColLabel = '';
+                return `<tr>${tds}</tr>`;
+            }).join('');
+            let header = (colNames || []).map(v => `<td style="opacity:0.7">${escapeHtml(v)}</td>`).join('');
+            return `<div class="opdesc"><strong>Matriz (linhas = elementos, colunas = compostos; última coluna não é termo independente aqui)</strong></div><table class="matrix"><thead><tr>${header}</tr></thead><tbody>${rowsHtml}</tbody></table>`;
+        }
+
+        /* ================= Gaussian elimination for homogeneous system (A x = 0) with step recording =================
+           We'll perform RREF on A (elements x compounds) but we treat it as normal matrix.
+           Steps recorded: swaps, multiply row, add multiple.
+        */
+        function cloneMatrix(mat) {
+            return mat.map(r => r.map(c => Frac.from(c)));
+        }
+        function gaussianRREF(mat, opts = { record: true }) {
+            let A = cloneMatrix(mat);
+            const m = A.length;
+            const n = A[0].length;
+            let steps = [];
+            let row = 0;
+            for (let col = 0; col < n && row < m; col++) {
+                // find pivot row with non-zero in this col starting from row
+                let sel = -1;
+                for (let r = row; r < m; r++) if (!A[r][col].isZero()) { sel = r; break; }
+                if (sel === -1) continue;
+                if (sel !== row) {
+                    let tmp = A[sel]; A[sel] = A[row]; A[row] = tmp;
+                    steps.push({ desc: `Trocar linhas R${row + 1} ↔ R${sel + 1} (coluna ${col + 1}).`, mat: cloneMatrix(A) });
+                } else {
+                    steps.push({ desc: `Pivô em R${row + 1}, C${col + 1} (não é zero).`, mat: cloneMatrix(A) });
+                }
+                // normalize pivot to 1
+                let pivot = A[row][col];
+                if (!pivot.eq(new Frac(1n, 1n))) {
+                    let factor = new Frac(1n, 1n).div(pivot);
+                    A[row] = A[row].map(v => v.mul(factor));
+                    steps.push({ desc: `Multiplicar R${row + 1} por ${formatFracForDesc(factor)} para pivô = 1.`, mat: cloneMatrix(A) });
+                }
+                // eliminate other rows (both below and above) to achieve RREF in one go
+                for (let r2 = 0; r2 < m; r2++) {
+                    if (r2 === row) continue;
+                    if (!A[r2][col].isZero()) {
+                        let factor = A[r2][col].neg();
+                        A[r2] = A[r2].map((val, j) => val.add(A[row][j].mul(factor)));
+                        steps.push({ desc: `Adicionar (${formatFracForDesc(factor)})*R${row + 1} a R${r2 + 1} para zerar coluna ${col + 1}.`, mat: cloneMatrix(A) });
+                    }
+                }
+                row++;
+            }
+            return { mat: A, steps };
+        }
+
+        function formatFracForDesc(f) { if (!(f instanceof Frac)) f = Frac.from(f); return f.toString(); }
+
+        /* ================= Extract nullspace (rational) from RREF matrix =================
+           Returns an object {status, pivots, freeCols, basis: [vecs], solution (one vector if dim==1)}
+           Procedure:
+            - Determine pivot columns
+            - free columns = others
+            - If no free columns -> only trivial solution
+            - For each free column, construct basis vector by setting that free col = 1, others free = 0, solve pivot vars
+        */
+        function nullspaceFromRREF(A) {
+            const m = A.length;
+            const n = A[0].length;
+            // find pivot positions: for each row, find first non-zero
+            let pivots = new Array(m).fill(-1);
+            let pivotCols = [];
+            for (let i = 0; i < m; i++) {
+                for (let j = 0; j < n; j++) {
+                    if (!A[i][j].isZero()) { pivots[i] = j; pivotCols.push(j); break; }
+                }
+            }
+            pivotCols = Array.from(new Set(pivotCols));
+            let freeCols = [];
+            for (let j = 0; j < n; j++) if (!pivotCols.includes(j)) freeCols.push(j);
+            if (freeCols.length === 0) return { status: 'trivial', pivots: pivotCols, freeCols, basis: [] };
+            // build basis vectors
+            let basis = [];
+            for (let fidx = 0; fidx < freeCols.length; fidx++) {
+                let freeCol = freeCols[fidx];
+                // vector length n
+                let vec = Array(n).fill(new Frac(0n, 1n));
+                vec[freeCol] = new Frac(1n, 1n);
+                // for each pivot row i, pivot column p = pivots[i]
+                for (let i = 0; i < m; i++) {
+                    let p = pivots[i];
+                    if (p === -1) continue;
+                    // pivot var = - sum_{j free} A[i][j]*free_j (because A row * x = 0)
+                    // Here only one free_j is 1 (the current basis) so contribution is -A[i][freeCol]
+                    let coeff = A[i][freeCol].neg();
+                    vec[p] = coeff;
+                }
+                basis.push(vec);
+            }
+            // If nullity == 1, we can produce the "solution" choosing the basis vector.
+            if (basis.length === 1) return { status: 'one', pivots: pivotCols, freeCols, basis, solution: basis[0] };
+            return { status: 'multiple', pivots: pivotCols, freeCols, basis };
+        }
+
+        /* ================= Utilities: scale rational vector to smallest integer positive coefficients =================
+           Input: vector of Frac
+           Steps:
+            - find lcm of denominators
+            - multiply all by lcm -> integers (BigInt)
+            - divide by gcd of integers to minimal integer vector
+            - if all integers negative, multiply by -1
+            - if mixed signs (some positive some negative), try multiply by -1 if majority negative; otherwise keep but warn.
+        */
+        function rationalVecToIntegerCoeffs(vec) {
+            // vec: array of Frac
+            let dens = vec.map(v => v.d);
+            let L = lcmBigIntArr(dens);
+            let ints = vec.map(v => (v.n * (L / v.d))); // BigInt
+            // if all zero -> trivial
+            let allZero = ints.every(x => x === 0n);
+            if (allZero) return { ok: false, reason: 'vetor zero', ints };
+            // divide by gcd
+            let g = absBigInt(ints[0]);
+            for (let x of ints) g = gcdBigInt(g, absBigInt(x));
+            if (g === 0n) g = 1n;
+            ints = ints.map(x => x / g);
+            // make positive if needed
+            let pos = ints.filter(x => x > 0n).length;
+            let neg = ints.filter(x => x < 0n).length;
+            if (neg > pos && pos > 0) ints = ints.map(x => -x);
+            if (neg > 0 && pos > 0) {
+                // mixed signs — try multiply basis by -1 if that yields more positive counts, else keep
+                // but for chemistry we expect all non-negative; we'll attempt to flip sign if that makes all non-negative
+                let allNonNeg = ints.every(x => x >= 0n);
+                if (!allNonNeg) {
+                    // try multiply by -1
+                    let alt = ints.map(x => -x);
+                    if (alt.every(x => x >= 0n)) ints = alt;
+                    // else leave as-is (we will still return and user will be warned)
+                }
+            }
+            // final gcd reduction again just in case
+            let g2 = ints.reduce((acc, x) => acc === 0n ? absBigInt(x) : gcdBigInt(acc, absBigInt(x)), 0n);
+            if (g2 > 1n) ints = ints.map(x => x / g2);
+            return { ok: true, ints };
+        }
+
+        /* ================= UI wiring ================= */
+        const inputEl = document.getElementById('input');
+        const balanceBtn = document.getElementById('balanceBtn');
+        const exampleBtn = document.getElementById('exampleBtn');
+        const resultArea = document.getElementById('resultArea');
+        const statusEl = document.getElementById('status');
+        const showRREF = document.getElementById('showRREF');
+
+        exampleBtn.addEventListener('click', () => {
+            inputEl.value = `C2H6 + O2 -> CO2 + H2O`;
+        });
+
+        balanceBtn.addEventListener('click', () => runBalance());
+
+        function runBalance() {
+            resultArea.innerHTML = '';
+            statusEl.textContent = 'Processando...';
+            try {
+                let parsed = parseEquation(inputEl.value);
+                appendHtml(`<div class="opdesc"><strong>Equação</strong></div><div class="formula">${escapeHtml(inputEl.value)}</div>`);
+                appendHtml(`<div class="opdesc"><strong>Compostos (reagentes → produtos)</strong></div><div class="formula">${escapeHtml(parsed.left.join(' + '))} → ${escapeHtml(parsed.right.join(' + '))}</div>`);
+                // show element list and parsed counts
+                appendHtml(`<div class="opdesc"><strong>Elementos detectados</strong></div><div class="small muted">${escapeHtml(parsed.elements.join(', '))}</div>`);
+                // show table of counts per compound
+                let tableHtml = `<table class="matrix"><thead><tr>${parsed.compounds.map(c => `<td style="opacity:0.8">${escapeHtml(c)}</td>`).join('')}</tr></thead><tbody>`;
+                for (let el of parsed.elements) {
+                    tableHtml += `<tr>${parsed.matrix[parsed.elements.indexOf(el)].map(c => `<td>${c.toDisplay()}</td>`).join('')}</tr>`;
+                }
+                tableHtml += `</tbody></table>`;
+                appendHtml(`<div class="opdesc"><strong>Matriz de contagens (linhas=elementos, colunas=compostos). Valores positivos para reagentes, negativos para produtos.</strong></div>`);
+                appendHtml(tableHtml);
+                // do RREF/gaussian
+                let g = gaussianRREF(parsed.matrix, { record: true });
+                for (let s of g.steps) {
+                    appendHtml(`<div class="opdesc">${escapeHtml(s.desc)}</div>`);
+                    appendHtml(matrixToHtml(s.mat, parsed.compounds, parsed.elements));
+                }
+                // compute nullspace
+                let ns = nullspaceFromRREF(g.mat);
+                if (ns.status === 'trivial') {
+                    appendHtml(`<div class="error">A matriz tem apenas solução trivial (vetor nulo). Não foi possível obter um vetor estequiométrico não nulo.</div>`);
+                    statusEl.textContent = 'Falha';
+                    statusEl.className = 'error';
+                    return;
+                }
+                if (ns.status === 'one') {
+                    appendHtml(`<div class="opdesc">Espaço nulo de dimensão 1 (solução única até escala). Vetor base encontrado:</div>`);
+                    // show solution fractions
+                    let sol = ns.solution;
+                    appendHtml(`<div class="opdesc"><strong>Vetor racional (base)</strong></div>`);
+                    let solHtml = sol.map((v, i) => `<div>${escapeHtml(parsed.compounds[i])} : ${v.toDisplay()}</div>`).join('');
+                    appendHtml(solHtml);
+                    // scale to integer minimal positive coefficients
+                    let rval = rationalVecToIntegerCoeffs(sol);
+                    if (!rval.ok) {
+                        appendHtml(`<div class="error">Não foi possível converter para coeficientes inteiros: ${escapeHtml(rval.reason || '')}</div>`);
+                        statusEl.textContent = 'Erro';
+                        statusEl.className = 'error';
+                        return;
+                    }
+                    let ints = rval.ints;
+                    // if any negative -> try flip sign
+                    if (ints.every(x => x <= 0n)) {
+                        ints = ints.map(x => -x);
+                    }
+                    if (ints.some(x => x < 0n)) {
+                        appendHtml(`<div class="error">Solução contém coeficientes negativos — verifique a equação ou tente uma parametrização diferente (grau de liberdade maior que 1).</div>`);
+                        statusEl.textContent = 'Problema';
+                        statusEl.className = 'error';
+                        return;
+                    }
+                    // build balanced equation
+                    let leftCoeffs = ints.slice(0, parsed.left.length);
+                    let rightCoeffs = ints.slice(parsed.left.length);
+                    let leftStr = parsed.left.map((c, i) => (leftCoeffs[i] === 1n ? '' : leftCoeffs[i].toString() + ' ') + c).join(' + ');
+                    let rightStr = parsed.right.map((c, i) => (rightCoeffs[i] === 1n ? '' : rightCoeffs[i].toString() + ' ') + c).join(' + ');
+                    appendHtml(`<hr/>`);
+                    appendHtml(`<div class="opdesc"><strong>Coeficientes inteiros mínimos (após redução):</strong></div>`);
+                    appendHtml(`<div class="small muted">${ints.map(x => x.toString()).join(', ')}</div>`);
+                    appendHtml(`<div class="opdesc"><strong>Equação balanceada</strong></div><div class="formula">${escapeHtml(leftStr)} → ${escapeHtml(rightStr)}</div>`);
+                    statusEl.textContent = 'Balanceada';
+                    statusEl.className = 'success';
+                    return;
+                }
+                if (ns.status === 'multiple') {
+                    appendHtml(`<div class="opdesc">Espaço nulo de dimensão ${ns.basis.length} (graus de liberdade > 1). Vou apresentar uma combinação simples (definindo cada variável livre = 1 sucessivamente para obter vetores-base).</div>`);
+                    for (let b = 0; b < ns.basis.length; b++) {
+                        let vec = ns.basis[b];
+                        appendHtml(`<div class="opdesc"><strong>Base ${b + 1}</strong></div>`);
+                        appendHtml(vec.map((v, i) => `<div>${escapeHtml(parsed.compounds[i])} : ${v.toDisplay()}</div>`).join(''));
+                    }
+                    // Try to produce one integer solution by summing all basis vectors (simple heuristic)
+                    let summed = Array(parsed.compounds.length).fill(new Frac(0n, 1n));
+                    for (let bvec of ns.basis) {
+                        for (let i = 0; i < summed.length; i++) {
+                            summed[i] = summed[i].add(bvec[i]);
+                        }
+                    }
+                    appendHtml(`<div class="opdesc">Tentativa heurística: soma das bases → converter para inteiros mínimos.</div>`);
+                    let rval = rationalVecToIntegerCoeffs(summed);
+                    if (!rval.ok) {
+                        appendHtml(`<div class="error">Não foi possível obter coeficientes inteiros da heurística.</div>`);
+                        statusEl.textContent = 'Problema';
+                        statusEl.className = 'error';
+                        return;
+                    }
+                    let ints = rval.ints;
+                    if (ints.every(x => x <= 0n)) ints = ints.map(x => -x);
+                    if (ints.some(x => x < 0n)) {
+                        appendHtml(`<div class="error">Solução heurística contém coeficientes negativos. Tente parametrizar livremente (vários graus de liberdade).</div>`);
+                        statusEl.textContent = 'Problema';
+                        statusEl.className = 'error';
+                        return;
+                    }
+                    let leftCoeffs = ints.slice(0, parsed.left.length);
+                    let rightCoeffs = ints.slice(parsed.left.length);
+                    let leftStr = parsed.left.map((c, i) => (leftCoeffs[i] === 1n ? '' : leftCoeffs[i].toString() + ' ') + c).join(' + ');
+                    let rightStr = parsed.right.map((c, i) => (rightCoeffs[i] === 1n ? '' : rightCoeffs[i].toString() + ' ') + c).join(' + ');
+                    appendHtml(`<hr/>`);
+                    appendHtml(`<div class="opdesc"><strong>Equação (solução heurística)</strong></div><div class="formula">${escapeHtml(leftStr)} → ${escapeHtml(rightStr)}</div>`);
+                    appendHtml(`<div class="small muted">Observação: há múltiplas soluções (graus de liberdade >1). A solução mostrada é uma escolha heurística. Para casos avançados posso permitir escolher parâmetros livres.</div>`);
+                    statusEl.textContent = 'Balanceada (heurística)';
+                    statusEl.className = 'success';
+                    return;
+                }
+            } catch (e) {
+                resultArea.innerHTML = `<div class="error">Erro: ${escapeHtml(e.message)}</div>`;
+                statusEl.textContent = 'Erro';
+                statusEl.className = 'error';
+            }
+        }
+
+        function appendHtml(html) {
+            let div = document.createElement('div');
+            div.innerHTML = html;
+            resultArea.appendChild(div);
+            resultArea.scrollTop = resultArea.scrollHeight;
+        }
+        function escapeHtml(s) { return String(s).replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;'); }
+
+        // Initialize example
+        inputEl.value = `C2H6 + O2 -> CO2 + H2O`;
+    </script>
+</body>
+
+</html>
